@@ -69,3 +69,5 @@ extras/Projucer/JUCECompileEngine.dylib
 # ARAPluginDemo build output
 examples/Plugins/*/Builds*
 examples/Plugins/*/JuceLibraryCode*
+Projucer_SR.app
+extras/Projucer/Builds/MacOSX/DerivedData
