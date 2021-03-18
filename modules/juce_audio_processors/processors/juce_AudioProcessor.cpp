@@ -596,7 +596,7 @@ void AudioProcessor::getOfflineRenderOffset (int& startOffset, int& endOffset)
     startOffset = endOffset = 0;
 }
 
-void AudioProcessor::timelineBoundsChanged (int64_t st, int64_t nd, int64_t tlStart, int64_t tlOffset)
+void AudioProcessor::timelineSelectionBoundsChanged (int64_t st, int64_t nd, int64_t tlStart, int64_t tlOffset)
 {
     //did you want to get notified about timeline selection changes?
     ignoreUnused (st, nd, tlStart, tlOffset);

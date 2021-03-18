@@ -351,7 +351,7 @@ public:
      @param tlStart start sample in the context of the timeline
      @param tlOffset timecode start offset for the timeline in samples
      */
-    virtual void timelineBoundsChanged (int64_t st, int64_t nd, int64_t tlStart, int64_t tlOffset);
+    virtual void timelineSelectionBoundsChanged (int64_t st, int64_t nd, int64_t tlStart, int64_t tlOffset);
 
     /** for AAX only - set by notification form the session path changing */
     String currentSessionPath;

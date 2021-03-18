@@ -57,6 +57,16 @@ public:
         fps30drop       = 6,
         fps60           = 7,
         fps60drop       = 8,
+        fps47952        = 9,
+        fps48           = 10,
+        fps50           = 11,
+        fps5994         = 12,
+        fps5994drop     = 13,
+        fps100          = 16,
+        fps11988        = 17,
+        fps11988drop    = 18,
+        fps120          = 19,
+        fps120drop      = 20,
         fpsUnknown      = 99
     };
 

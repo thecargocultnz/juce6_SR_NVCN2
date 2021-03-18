@@ -383,6 +383,36 @@ namespace AAXClasses
         return juceIndex;
     }
 
+    static double getAAXFramesPerSecond(AAX_EFrameRate oFrameRate)
+    {
+        double deflt{24.0};
+        switch (oFrameRate)
+        {
+            case AAX_eFrameRate_Undeclared:     return deflt;
+            case AAX_eFrameRate_23976:          return 24.0 * 1000.0 / 1001.0;
+            case AAX_eFrameRate_24Frame:        return 24.0;
+            case AAX_eFrameRate_25Frame:        return 25.0;
+            case AAX_eFrameRate_2997DropFrame:  return 30.0 * 1000.0 / 1001.0;
+            case AAX_eFrameRate_2997NonDrop:    return 30.0 * 1000.0 / 1001.0;
+            case AAX_eFrameRate_30DropFrame:    return 30.0;
+            case AAX_eFrameRate_30NonDrop:      return 30.0;
+            case AAX_eFrameRate_47952:          return 48.0 * 1000.0 / 1001.0;
+            case AAX_eFrameRate_48Frame:        return 48.0;
+            case AAX_eFrameRate_50Frame:        return 50.0;
+            case AAX_eFrameRate_5994DropFrame:  return 60.0 * 1000.0 / 1001.0;
+            case AAX_eFrameRate_5994NonDrop:    return 60.0 * 1000.0 / 1001.0;
+            case AAX_eFrameRate_60DropFrame:    return 60.0;
+            case AAX_eFrameRate_60NonDrop:      return 60.0;
+            case AAX_eFrameRate_100Frame:       return 100.0;
+            case AAX_eFrameRate_11988DropFrame: return 120.0 * 1000.0 / 1001.0;
+            case AAX_eFrameRate_11988NonDrop:   return 120.0 * 1000.0 / 1001.0;
+            case AAX_eFrameRate_120DropFrame:   return 120.0;
+            case AAX_eFrameRate_120NonDrop:     return 120.0;
+            default:                            return deflt;
+        }
+        return deflt;
+    }
+
     //==============================================================================
     class JuceAAX_Processor;
 
@@ -837,20 +867,20 @@ namespace AAXClasses
                 
                 /** find the selection start position in th context of the timeline */
                 int64_t selectionStartInTimeline = 0;
-                if( auto* myPrms = static_cast<AAX_CEffectParameters *>(GetEffectParameters()) )
+                if( auto* effectParams = static_cast<AAX_CEffectParameters *>(GetEffectParameters()) )
                 {
-                   if( auto* mTrans = myPrms->Transport() )
+                   if( auto* transport = effectParams->Transport() )
                    {
                        /** collect framerate and offset - if the HD option isn't available (pre PT 2020.6) then we use the older method */
-                       AAX_EFrameRate oFrameRate;
-                       int32_t oOffset32;
-                       int64_t oOffset;
-                       AAX_Result  res =  mTrans->GetHDTimeCodeInfo (&oFrameRate, &oOffset);
+                       AAX_EFrameRate frameRate;
+                       int32_t offset32;
+                       int64_t offset;
                        
+                       AAX_Result  res =  transport->GetHDTimeCodeInfo (&frameRate, &offset);
                        if(res==AAX_ERROR_UNIMPLEMENTED)
                        {
-                           res =  mTrans->GetTimeCodeInfo (&oFrameRate, &oOffset32);
-                           oOffset = oOffset32;
+                           res =  transport->GetTimeCodeInfo (&frameRate, &offset32);
+                           offset = offset32;
                        }
                        
                        if (res==AAX_SUCCESS)
@@ -858,17 +888,17 @@ namespace AAXClasses
                            /** calculate the timecode start position in samples */
                            AAX_CSampleRate sRate;
                            Controller()->GetSampleRate(&sRate);
-                           double frameRateDbl = getAAXFramerateAsDouble(oFrameRate);
-                           timelineStartOffset = (oOffset / frameRateDbl) * sRate;
+                           double frameRateDbl = getAAXFramesPerSecond(frameRate);
+                           timelineStartOffset = (offset / frameRateDbl) * sRate;
                            
                            /** collect the selection start with respect to start of timeline (0)*/
-                           AAX_Result tlRes =  mTrans->GetTimelineSelectionStartPosition(&selectionStartInTimeline);
+                           AAX_Result tlRes =  transport->GetTimelineSelectionStartPosition(&selectionStartInTimeline);
         
                        }
                    }
                 }
                 
-                getAAXProcessor().getPluginInstance().timelineBoundsChanged(iSrcStart, iSrcEnd, selectionStartInTimeline, timelineStartOffset);
+                getAAXProcessor().getPluginInstance().timelineSelectionBoundsChanged(iSrcStart, iSrcEnd, selectionStartInTimeline, timelineStartOffset);
                 getAAXProcessor().getPluginInstance().getOfflineRenderOffset(startOffset, endOffset);
                 oDstStart = iSrcStart + startOffset;
                 oDstEnd = iSrcEnd + endOffset;
@@ -954,75 +984,7 @@ namespace AAXClasses
 
         private:
             
-            double getAAXFramerateAsDouble(AAX_EFrameRate oFrameRate)
-            {
-                
-                switch (oFrameRate) {
-                    case AAX_eFrameRate_Undeclared:
-                        break;
-                    case AAX_eFrameRate_23976:
-                        return 24.0*1000.0/1001.0;
-                        break;
-                    case AAX_eFrameRate_24Frame:
-                        return 24.0;
-                        break;
-                    case AAX_eFrameRate_25Frame:
-                        return 25.0;
-                        break;
-                    case AAX_eFrameRate_2997DropFrame:
-                        return 30.0*1000.0/1001.0;
-                        break;
-                    case AAX_eFrameRate_2997NonDrop:
-                        return 30.0*1000.0/1001.0;
-                        break;
-                    case AAX_eFrameRate_30DropFrame:
-                        return 30.0;
-                        break;
-                    case AAX_eFrameRate_30NonDrop:
-                        return 30.0;
-                        break;
-                    case AAX_eFrameRate_47952:
-                        return 48.0*1000.0/1001.0;
-                        break;
-                    case AAX_eFrameRate_48Frame:
-                        return 48.0;
-                        break;
-                    case AAX_eFrameRate_50Frame:
-                        return 50.0;
-                        break;
-                    case AAX_eFrameRate_5994DropFrame:
-                        return 60.0*1000.0/1001.0;
-                        break;
-                    case AAX_eFrameRate_5994NonDrop:
-                        return 60.0*1000.0/1001.0;
-                        break;
-                    case AAX_eFrameRate_60DropFrame:
-                        return 60.0;
-                        break;
-                    case AAX_eFrameRate_60NonDrop:
-                        return 60.0;
-                        break;
-                    case AAX_eFrameRate_100Frame:
-                        return 100.0;
-                        break;
-                    case AAX_eFrameRate_11988DropFrame:
-                        return 120.0*1000.0/1001.0;
-                        break;
-                    case AAX_eFrameRate_11988NonDrop:
-                        return 120.0*1000.0/1001.0;
-                        break;
-                    case AAX_eFrameRate_120DropFrame:
-                        return 120.0;
-                        break;
-                    case AAX_eFrameRate_120NonDrop:
-                        return 120.0;
-                        break;
-                        
-                    default:
-                        return  24.0*1000.0/1001.0;
-                        break;
-                }
-            }
+
                 
             void initRandomAccessReader(const float * const inAudioIns[], int numOfActualInputs, int numOfInputsInBuffer)
             {
@@ -1472,27 +1434,48 @@ namespace AAXClasses
             info.frameRate = AudioPlayHead::fpsUnknown;
 
             AAX_EFrameRate frameRate;
-            int32_t offset;
-
-            if (transport.GetTimeCodeInfo (&frameRate, &offset) == AAX_SUCCESS)
+            int32_t offset32;
+            int64_t offset;
+            
+            /** get session start offset using the HD method where available (>= PT2020.6) */
+            AAX_Result  res =  transport.GetHDTimeCodeInfo (&frameRate, &offset);
+            if(res==AAX_ERROR_UNIMPLEMENTED)
             {
-                double framesPerSec = 24.0;
-
+                res =  transport.GetTimeCodeInfo (&frameRate, &offset32);
+                offset = offset32;
+            }
+            if (res==AAX_SUCCESS)
+            {
+                double framesPerSec = getAAXFramesPerSecond(frameRate);
+                
                 switch (frameRate)
                 {
-                    case AAX_eFrameRate_Undeclared:    break;
-                    case AAX_eFrameRate_24Frame:       info.frameRate = AudioPlayHead::fps24;       break;
-                    case AAX_eFrameRate_25Frame:       info.frameRate = AudioPlayHead::fps25;       framesPerSec = 25.0; break;
-                    case AAX_eFrameRate_2997NonDrop:   info.frameRate = AudioPlayHead::fps2997;     framesPerSec = 30.0 * 1000.0 / 1001.0; break;
-                    case AAX_eFrameRate_2997DropFrame: info.frameRate = AudioPlayHead::fps2997drop; framesPerSec = 30.0 * 1000.0 / 1001.0; break;
-                    case AAX_eFrameRate_30NonDrop:     info.frameRate = AudioPlayHead::fps30;       framesPerSec = 30.0; break;
-                    case AAX_eFrameRate_30DropFrame:   info.frameRate = AudioPlayHead::fps30drop;   framesPerSec = 30.0; break;
-                    case AAX_eFrameRate_23976:         info.frameRate = AudioPlayHead::fps23976;    framesPerSec = 24.0 * 1000.0 / 1001.0; break;
-                    default:                           break;
+                    case AAX_eFrameRate_Undeclared:     break;
+                    case AAX_eFrameRate_24Frame:        info.frameRate = AudioPlayHead::fps24;          break;
+                    case AAX_eFrameRate_25Frame:        info.frameRate = AudioPlayHead::fps25;          break;
+                    case AAX_eFrameRate_2997NonDrop:    info.frameRate = AudioPlayHead::fps2997;        break;
+                    case AAX_eFrameRate_2997DropFrame:  info.frameRate = AudioPlayHead::fps2997drop;    break;
+                    case AAX_eFrameRate_30NonDrop:      info.frameRate = AudioPlayHead::fps30;          break;
+                    case AAX_eFrameRate_30DropFrame:    info.frameRate = AudioPlayHead::fps30drop;      break;
+                    case AAX_eFrameRate_23976:          info.frameRate = AudioPlayHead::fps23976;       break;
+                    case AAX_eFrameRate_47952:          info.frameRate = AudioPlayHead::fps47952;       break;
+                    case AAX_eFrameRate_48Frame:        info.frameRate = AudioPlayHead::fps48;          break;
+                    case AAX_eFrameRate_50Frame:        info.frameRate = AudioPlayHead::fps50;          break;
+                    case AAX_eFrameRate_5994NonDrop:    info.frameRate = AudioPlayHead::fps5994;        break;
+                    case AAX_eFrameRate_5994DropFrame:  info.frameRate = AudioPlayHead::fps5994drop;    break;
+                    case AAX_eFrameRate_60NonDrop:      info.frameRate = AudioPlayHead::fps60;          break;
+                    case AAX_eFrameRate_60DropFrame:    info.frameRate = AudioPlayHead::fps60drop;      break;
+                    case AAX_eFrameRate_100Frame:       info.frameRate = AudioPlayHead::fps100;         break;
+                    case AAX_eFrameRate_11988NonDrop:   info.frameRate = AudioPlayHead::fps11988;       break;
+                    case AAX_eFrameRate_11988DropFrame: info.frameRate = AudioPlayHead::fps11988drop;   break;
+                    case AAX_eFrameRate_120NonDrop:     info.frameRate = AudioPlayHead::fps120;         break;
+                    case AAX_eFrameRate_120DropFrame:   info.frameRate = AudioPlayHead::fps120drop;     break;
+                    default:                            break;
                 }
-
+                
                 info.editOriginTime = offset / framesPerSec;
             }
+
 
             // No way to get these: (?)
             info.isRecording = false;
@@ -2718,11 +2701,10 @@ namespace AAXClasses
         jassert (! pluginIds.contains (pluginID));
         pluginIds.add (pluginID);
 
-        /**========== ENVY CONNECT ADDITION ==========*/
-        #if TCC_Build_AAXNative
+        
+        #if ! JucePlugin_AAXDisableNative
         properties->AddProperty (AAX_eProperty_PlugInID_Native, pluginID);
         #endif
-        /**========== ==================== ==========*/
 
         
        #if ! (JucePlugin_AAXDisableAudioSuite || JucePlugin_EnhancedAudioSuite)
