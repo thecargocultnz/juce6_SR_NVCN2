@@ -320,6 +320,15 @@ public:
         For offline processing (currently Pro Tools AudioSuite), being called after analyse stage finished.
      */
     virtual void analysisFinished ();
+    
+    
+    /** Notifies AudioProcessor that render has finished.
+
+        For offline processing (currently Pro Tools AudioSuite), being called after render stage finished.
+     */
+    virtual void renderFinished ();
+    
+    
 
 #if JucePlugin_EnhancedAudioSuite
     /** Allows aborting plug-in load due to license failure instead of crashing. */
@@ -334,7 +343,20 @@ public:
             - After the user makes a new data selection on the timeline.
      */
     virtual void getOfflineRenderOffset (int& startOffset, int& endOffset);
+    
+    
+    /** JW Addition for Envy Connect - need to know timeline selection position and length.
+     @param st start sample within the source - always zero
+     @param nd end sample within the source - effectively the length
+     @param tlStart start sample in the context of the timeline
+     @param tlOffset timecode start offset for the timeline in samples
+     */
+    virtual void timelineBoundsChanged (int64_t st, int64_t nd, int64_t tlStart, int64_t tlOffset);
 
+    /** for AAX only - set by notification form the session path changing */
+    String currentSessionPath;
+    void setCurrentSessionPath(juce::String pth);
+    
     struct EnhancedAudioSuiteInterface
     {
         virtual ~EnhancedAudioSuiteInterface() {}

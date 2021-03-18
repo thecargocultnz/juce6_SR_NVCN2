@@ -595,9 +595,28 @@ void AudioProcessor::getOfflineRenderOffset (int& startOffset, int& endOffset)
 {
     startOffset = endOffset = 0;
 }
+
+void AudioProcessor::timelineBoundsChanged (int64_t st, int64_t nd, int64_t tlStart, int64_t tlOffset)
+{
+    //did you want to get notified about timeline selection changes?
+    ignoreUnused (st, nd, tlStart, tlOffset);
+    jassertfalse;
+}
+
+void AudioProcessor::setCurrentSessionPath(juce::String pth)
+{
+    currentSessionPath = pth;
+}
+
 #endif
 
 void AudioProcessor::analysisFinished ()
+{
+    // If you hit this assertion then you've got analysis called but you haven't implement required callbacks.
+    jassertfalse;
+}
+
+void AudioProcessor::renderFinished ()
 {
     // If you hit this assertion then you've got analysis called but you haven't implement required callbacks.
     jassertfalse;

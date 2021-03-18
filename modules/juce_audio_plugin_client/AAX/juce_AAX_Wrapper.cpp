@@ -828,17 +828,54 @@ namespace AAXClasses
 
                 return AAX_SUCCESS;
             }
-
+            
             AAX_Result TranslateOutputBounds (int64_t iSrcStart, int64_t iSrcEnd, int64_t& oDstStart, int64_t& oDstEnd) override
             {
-                int startOffset, endOffset;
+                int startOffset = 0;
+                int endOffset = 0;
+                int64_t timelineStartOffset = 0;
+                
+                /** find the selection start position in th context of the timeline */
+                int64_t selectionStartInTimeline = 0;
+                if( auto* myPrms = static_cast<AAX_CEffectParameters *>(GetEffectParameters()) )
+                {
+                   if( auto* mTrans = myPrms->Transport() )
+                   {
+                       /** collect framerate and offset - if the HD option isn't available (pre PT 2020.6) then we use the older method */
+                       AAX_EFrameRate oFrameRate;
+                       int32_t oOffset32;
+                       int64_t oOffset;
+                       AAX_Result  res =  mTrans->GetHDTimeCodeInfo (&oFrameRate, &oOffset);
+                       
+                       if(res==AAX_ERROR_UNIMPLEMENTED)
+                       {
+                           res =  mTrans->GetTimeCodeInfo (&oFrameRate, &oOffset32);
+                           oOffset = oOffset32;
+                       }
+                       
+                       if (res==AAX_SUCCESS)
+                       {
+                           /** calculate the timecode start position in samples */
+                           AAX_CSampleRate sRate;
+                           Controller()->GetSampleRate(&sRate);
+                           double frameRateDbl = getAAXFramerateAsDouble(oFrameRate);
+                           timelineStartOffset = (oOffset / frameRateDbl) * sRate;
+                           
+                           /** collect the selection start with respect to start of timeline (0)*/
+                           AAX_Result tlRes =  mTrans->GetTimelineSelectionStartPosition(&selectionStartInTimeline);
+        
+                       }
+                   }
+                }
+                
+                getAAXProcessor().getPluginInstance().timelineBoundsChanged(iSrcStart, iSrcEnd, selectionStartInTimeline, timelineStartOffset);
                 getAAXProcessor().getPluginInstance().getOfflineRenderOffset(startOffset, endOffset);
                 oDstStart = iSrcStart + startOffset;
                 oDstEnd = iSrcEnd + endOffset;
                 return AAX_SUCCESS;
             }
-
-             AAX_Result PreAnalyze ( int32_t iAudioInCount, int32_t iWindowSize ) override
+            
+            AAX_Result PreAnalyze ( int32_t iAudioInCount, int32_t iWindowSize ) override
             {
                 mIsFirstPass = true;
                 getAAXProcessor().getPluginInstance().setRateAndBufferSizeDetails (getAAXProcessor().sampleRate, iWindowSize);
@@ -864,6 +901,7 @@ namespace AAXClasses
             AAX_Result PostRender () override
             {
                 getAAXProcessor().getPluginInstance().setRandomAudioReader(nullptr);
+                getAAXProcessor().getPluginInstance().renderFinished();
                 return AAX_SUCCESS;
             }
 
@@ -915,6 +953,77 @@ namespace AAXClasses
             }
 
         private:
+            
+            double getAAXFramerateAsDouble(AAX_EFrameRate oFrameRate)
+            {
+                
+                switch (oFrameRate) {
+                    case AAX_eFrameRate_Undeclared:
+                        break;
+                    case AAX_eFrameRate_23976:
+                        return 24.0*1000.0/1001.0;
+                        break;
+                    case AAX_eFrameRate_24Frame:
+                        return 24.0;
+                        break;
+                    case AAX_eFrameRate_25Frame:
+                        return 25.0;
+                        break;
+                    case AAX_eFrameRate_2997DropFrame:
+                        return 30.0*1000.0/1001.0;
+                        break;
+                    case AAX_eFrameRate_2997NonDrop:
+                        return 30.0*1000.0/1001.0;
+                        break;
+                    case AAX_eFrameRate_30DropFrame:
+                        return 30.0;
+                        break;
+                    case AAX_eFrameRate_30NonDrop:
+                        return 30.0;
+                        break;
+                    case AAX_eFrameRate_47952:
+                        return 48.0*1000.0/1001.0;
+                        break;
+                    case AAX_eFrameRate_48Frame:
+                        return 48.0;
+                        break;
+                    case AAX_eFrameRate_50Frame:
+                        return 50.0;
+                        break;
+                    case AAX_eFrameRate_5994DropFrame:
+                        return 60.0*1000.0/1001.0;
+                        break;
+                    case AAX_eFrameRate_5994NonDrop:
+                        return 60.0*1000.0/1001.0;
+                        break;
+                    case AAX_eFrameRate_60DropFrame:
+                        return 60.0;
+                        break;
+                    case AAX_eFrameRate_60NonDrop:
+                        return 60.0;
+                        break;
+                    case AAX_eFrameRate_100Frame:
+                        return 100.0;
+                        break;
+                    case AAX_eFrameRate_11988DropFrame:
+                        return 120.0*1000.0/1001.0;
+                        break;
+                    case AAX_eFrameRate_11988NonDrop:
+                        return 120.0*1000.0/1001.0;
+                        break;
+                    case AAX_eFrameRate_120DropFrame:
+                        return 120.0;
+                        break;
+                    case AAX_eFrameRate_120NonDrop:
+                        return 120.0;
+                        break;
+                        
+                    default:
+                        return  24.0*1000.0/1001.0;
+                        break;
+                }
+            }
+                
             void initRandomAccessReader(const float * const inAudioIns[], int numOfActualInputs, int numOfInputsInBuffer)
             {
                 sampleRate = getAAXProcessor().sampleRate;
@@ -1477,6 +1586,12 @@ namespace AAXClasses
                     processingSidechainChange = true;
                     sidechainDesired = (type == AAX_eNotificationEvent_SideChainBeingConnected);
                     updateSidechainState();
+                    break;
+                }
+                case AAX_eNotificationEvent_SessionPathChanged:
+                {
+                    auto pth = static_cast<const AAX_IString*> (data)->Get();
+                    pluginInstance->setCurrentSessionPath(pth);
                     break;
                 }
             }
@@ -2603,8 +2718,13 @@ namespace AAXClasses
         jassert (! pluginIds.contains (pluginID));
         pluginIds.add (pluginID);
 
+        /**========== ENVY CONNECT ADDITION ==========*/
+        #if TCC_Build_AAXNative
         properties->AddProperty (AAX_eProperty_PlugInID_Native, pluginID);
+        #endif
+        /**========== ==================== ==========*/
 
+        
        #if ! (JucePlugin_AAXDisableAudioSuite || JucePlugin_EnhancedAudioSuite)
         properties->AddProperty (AAX_eProperty_PlugInID_AudioSuite,
                                  processor.getAAXPluginIDForMainBusConfig (fullLayout.getMainInputChannelSet(),
