@@ -1400,7 +1400,7 @@ public:
             s.set ("PRODUCT_BUNDLE_IDENTIFIER", getBundleIdentifier());
 
             auto arch = (! owner.isiOS() && type == Target::AudioUnitv3PlugIn) ? osxArch_64Bit
-                        : type == Target::AAXPlugIn                            ? osxArch_64BitIntel
+//                        : type == Target::AAXPlugIn                            ? osxArch_64BitIntel
                                                                                : config.getOSXArchitectureString();
 
             if      (arch == osxArch_Native)           s.set ("ARCHS", "\"$(NATIVE_ARCH_ACTUAL)\"");
