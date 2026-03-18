@@ -22,7 +22,9 @@ class ARADocumentController;
 class JUCE_API  AudioProcessorARAExtension  : public ARA::PlugIn::PlugInExtension
 {
 public:
-    using ARA::PlugIn::PlugInExtension::PlugInExtension;
+// bug in Visual Studio 2019 16.9 causes errors with this using declaration, adding default c'tor instead
+//  using ARA::PlugIn::PlugInExtension::PlugInExtension;
+    AudioProcessorARAExtension() = default;
 
     //==============================================================================
     // overloading inherited templated getters to default to juce versions of the returned classes
@@ -64,7 +66,7 @@ protected:
     bool prepareToPlayForARA (double sampleRate, int samplesPerBlock, int numChannels);
 
     /** Implementation helper for AudioProcessor::releaseResources():
-        If bound to ARA, this traverses the instance roles to let them release ressources
+        If bound to ARA, this traverses the instance roles to let them release resources
         and returns true. Otherwise returns false and does nothing.
     */
     bool releaseResourcesForARA();

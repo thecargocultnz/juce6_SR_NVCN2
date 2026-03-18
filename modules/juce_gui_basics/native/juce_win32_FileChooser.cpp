@@ -26,8 +26,10 @@
 namespace juce
 {
 
-class Win32NativeFileChooser  : public std::enable_shared_from_this<Win32NativeFileChooser>,
-                                private Thread
+// Implemented in juce_win32_Messaging.cpp
+bool dispatchNextMessageOnSystemQueue (bool returnIfNoPendingMessages);
+
+class Win32NativeFileChooser  : private Thread
 {
 public:
     enum { charsAvailableForResult = 32768 };
@@ -69,10 +71,15 @@ public:
         }
     }
 
-    ~Win32NativeFileChooser()
+    ~Win32NativeFileChooser() override
     {
         signalThreadShouldExit();
-        waitForThreadToExit (-1);
+
+        while (isThreadRunning())
+        {
+            if (! dispatchNextMessageOnSystemQueue (true))
+                Thread::sleep (1);
+        }
     }
 
     void open (bool async)
@@ -103,7 +110,7 @@ public:
         shouldCancel = true;
 
         if (auto hwnd = nativeDialogRef.get())
-            EndDialog (hwnd, 0);
+            PostMessage (hwnd, WM_CLOSE, 0, 0);
     }
 
     Component* getCustomComponent()    { return customComponent.get(); }
@@ -204,8 +211,13 @@ private:
             return ptr;
         }();
 
-        if (item == nullptr || FAILED (dialog.SetFolder (item)))
-            return false;
+        if (item != nullptr)
+        {
+            dialog.SetDefaultFolder (item);
+
+            if (! initialPath.isEmpty())
+                dialog.SetFolder (item);
+        }
 
         String filename (files.getData());
 
@@ -226,31 +238,33 @@ private:
         {
             explicit Events (Win32NativeFileChooser& o) : owner (o) {}
 
-            JUCE_COMRESULT OnTypeChange (IFileDialog* d) override
+            JUCE_COMRESULT OnTypeChange (IFileDialog* d) override                                                 { return updateHwnd (d); }
+            JUCE_COMRESULT OnFolderChanging (IFileDialog* d, IShellItem*) override                                { return updateHwnd (d); }
+            JUCE_COMRESULT OnFileOk (IFileDialog* d) override                                                     { return updateHwnd (d); }
+            JUCE_COMRESULT OnFolderChange (IFileDialog* d) override                                               { return updateHwnd (d); }
+            JUCE_COMRESULT OnSelectionChange (IFileDialog* d) override                                            { return updateHwnd (d); }
+            JUCE_COMRESULT OnShareViolation (IFileDialog* d, IShellItem*, FDE_SHAREVIOLATION_RESPONSE*) override  { return updateHwnd (d); }
+            JUCE_COMRESULT OnOverwrite (IFileDialog* d, IShellItem*, FDE_OVERWRITE_RESPONSE*) override            { return updateHwnd (d); }
+
+            JUCE_COMRESULT updateHwnd (IFileDialog* d)
             {
                 HWND hwnd = nullptr;
-                IUnknown_GetWindow (d, &hwnd);
+
+                if (auto window = ComSmartPtr<IFileDialog> { d }.getInterface<IOleWindow>())
+                    window->GetWindow (&hwnd);
 
                 ScopedLock lock (owner.deletingDialog);
 
-                if (hwnd != nullptr)
+                if (owner.shouldCancel)
+                    d->Close (S_FALSE);
+                else if (hwnd != nullptr)
                     owner.nativeDialogRef = hwnd;
 
-                return owner.shouldCancel ? S_FALSE : S_OK;
+                return S_OK;
             }
-
-            JUCE_COMRESULT OnFolderChanging (IFileDialog*, IShellItem*) override                                { return S_OK; }
-            JUCE_COMRESULT OnFileOk (IFileDialog*) override                                                     { return S_OK; }
-            JUCE_COMRESULT OnFolderChange (IFileDialog*) override                                               { return S_OK; }
-            JUCE_COMRESULT OnSelectionChange (IFileDialog*) override                                            { return S_OK; }
-            JUCE_COMRESULT OnShareViolation (IFileDialog*, IShellItem*, FDE_SHAREVIOLATION_RESPONSE*) override  { return S_OK; }
-            JUCE_COMRESULT OnOverwrite (IFileDialog*, IShellItem*, FDE_OVERWRITE_RESPONSE*) override            { return S_OK; }
 
             Win32NativeFileChooser& owner;
         };
-
-        DWORD cookie = 0;
-        dialog.Advise (new Events { *this }, &cookie);
 
         {
             ScopedLock lock (deletingDialog);
@@ -259,7 +273,20 @@ private:
                 return false;
         }
 
-        const auto result = dialog.Show (async ? nullptr : static_cast<HWND> (owner->getWindowHandle())) == S_OK;
+        const auto result = [&]
+        {
+            struct ScopedAdvise
+            {
+                ScopedAdvise (IFileDialog& d, Events& events) : dialog (d) { dialog.Advise (&events, &cookie); }
+                ~ScopedAdvise() { dialog.Unadvise (cookie); }
+                IFileDialog& dialog;
+                DWORD cookie = 0;
+            };
+
+            Events events { *this };
+            ScopedAdvise scope { dialog, events };
+            return dialog.Show (async ? nullptr : static_cast<HWND> (owner->getWindowHandle())) == S_OK;
+        }();
 
         ScopedLock lock (deletingDialog);
         nativeDialogRef = nullptr;
@@ -407,6 +434,13 @@ private:
            #else
             of.lStructSize = sizeof (of);
            #endif
+
+            if (files[0] != 0)
+            {
+                auto startingFile = File (initialPath).getChildFile (String (files.get()));
+                startingFile.getFullPathName().copyToUTF16 (files, charsAvailableForResult * sizeof (WCHAR));
+            }
+
             of.hwndOwner = (HWND) (async ? nullptr : owner->getWindowHandle());
             of.lpstrFilter = filters.getData();
             of.nFilterIndex = 1;
@@ -476,20 +510,27 @@ private:
 
     void run() override
     {
-        // IUnknown_GetWindow will only succeed when instantiated in a single-thread apartment
-        CoInitializeEx (nullptr, COINIT_APARTMENTTHREADED);
-
-        auto resultsCopy = openDialog (true);
-        auto safeOwner = owner;
-        std::weak_ptr<Win32NativeFileChooser> weakThis = shared_from_this();
-
-        MessageManager::callAsync ([resultsCopy, safeOwner, weakThis]
+        results = [&]
         {
-            if (auto locked = weakThis.lock())
-                locked->results = resultsCopy;
+            struct ScopedCoInitialize
+            {
+                // IUnknown_GetWindow will only succeed when instantiated in a single-thread apartment
+                ScopedCoInitialize() { ignoreUnused (CoInitializeEx (nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE)); }
+                ~ScopedCoInitialize() { CoUninitialize(); }
+            };
 
+            ScopedCoInitialize scope;
+
+            return openDialog (true);
+        }();
+
+        auto safeOwner = owner;
+        auto resultCode = results.size() > 0 ? 1 : 0;
+
+        MessageManager::callAsync ([resultCode, safeOwner]
+        {
             if (safeOwner != nullptr)
-                safeOwner->exitModalState (resultsCopy.size() > 0 ? 1 : 0);
+                safeOwner->exitModalState (resultCode);
         });
     }
 
@@ -647,12 +688,11 @@ private:
                 }
                 else
                 {
-                    Component::SafePointer<FilePreviewComponent> safeComp (comp);
-
-                    File selectedFile (path);
-                    MessageManager::callAsync ([safeComp, selectedFile]() mutable
+                    MessageManager::callAsync ([safeComp = Component::SafePointer<FilePreviewComponent> { comp },
+                                                selectedFile = File { path }]() mutable
                                                {
-                                                    safeComp->selectedFileChanged (selectedFile);
+                                                    if (safeComp != nullptr)
+                                                        safeComp->selectedFileChanged (selectedFile);
                                                });
                 }
             }
@@ -737,9 +777,9 @@ class FileChooser::Native     : public std::enable_shared_from_this<Native>,
                                 public FileChooser::Pimpl
 {
 public:
-    Native (FileChooser& fileChooser, int flags, FilePreviewComponent* previewComp)
+    Native (FileChooser& fileChooser, int flagsIn, FilePreviewComponent* previewComp)
         : owner (fileChooser),
-          nativeFileChooser (std::make_shared<Win32NativeFileChooser> (this, flags, previewComp, fileChooser.startingFile,
+          nativeFileChooser (std::make_unique<Win32NativeFileChooser> (this, flagsIn, previewComp, fileChooser.startingFile,
                                                                        fileChooser.title, fileChooser.filters))
     {
         auto mainMon = Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea;
@@ -812,10 +852,10 @@ bool FileChooser::isPlatformDialogAvailable()
    #endif
 }
 
-std::unique_ptr<FileChooser::Pimpl> FileChooser::showPlatformDialog (FileChooser& owner, int flags,
+std::shared_ptr<FileChooser::Pimpl> FileChooser::showPlatformDialog (FileChooser& owner, int flags,
                                                                      FilePreviewComponent* preview)
 {
-    return std::make_unique<FileChooser::Native> (owner, flags, preview);
+    return std::make_shared<FileChooser::Native> (owner, flags, preview);
 }
 
 } // namespace juce

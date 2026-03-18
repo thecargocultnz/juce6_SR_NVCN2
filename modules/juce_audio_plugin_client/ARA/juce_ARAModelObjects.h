@@ -352,6 +352,8 @@ public:
     template <typename AudioModification_t = ARAAudioModification>
     std::vector<AudioModification_t*> const& getAudioModifications() const noexcept { return ARA::PlugIn::AudioSource::getAudioModifications<AudioModification_t>(); }
 
+    const AudioChannelSet& getLayout() const noexcept { return layout; }
+
     class JUCE_API  Listener  : public ARAListenableModelClass<ARAAudioSource>::Listener
     {
     public:
@@ -382,7 +384,7 @@ public:
             @param state Indicates start, intermediate update or completion of the analysis.
             @param progress Progress normalized to the 0..1 range.
         */
-        virtual void didUpdateAudioSourceAnalyisProgress (ARAAudioSource* audioSource, ARAAnalysisProgressState state, float progress) {}
+        virtual void didUpdateAudioSourceAnalysisProgress (ARAAudioSource* audioSource, ARAAnalysisProgressState state, float progress) {}
 
         /** Called before access to an audio source's samples is enabled or disabled.
             @param audioSource The audio source whose sample access state will be changed.
@@ -457,6 +459,10 @@ public:
     void notifyContentChanged (ARAContentUpdateScopes scopeFlags, bool notifyARAHost);
 
 private:
+    void doUpdateChannelArrangement (const ARA::ChannelArrangement& channelArrangement) noexcept override;
+
+    AudioChannelSet layout;
+
     friend ARADocumentController;
     ARA::PlugIn::AnalysisProgressTracker internalAnalysisProgressTracker;
 };

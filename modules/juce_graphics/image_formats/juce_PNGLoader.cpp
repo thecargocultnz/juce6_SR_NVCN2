@@ -26,7 +26,7 @@
 namespace juce
 {
 
-JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4390 4611 4365 4267 4616 2544 2545)
+JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4390 4611 4365 4267 4616 2544 2545 6297)
 
 namespace zlibNamespace
 {
@@ -62,7 +62,8 @@ namespace pnglibNamespace
                                         "-Wimplicit-fallthrough",
                                         "-Wtautological-constant-out-of-range-compare",
                                         "-Wzero-as-null-pointer-constant",
-                                        "-Wcomma")
+                                        "-Wcomma",
+                                        "-Wmaybe-uninitialized")
 
   #undef check
   using std::abs;
@@ -305,6 +306,7 @@ namespace pnglibNamespace
   void png_do_read_invert_alpha (png_row_infop, png_bytep);
   void png_do_read_swap_alpha (png_row_infop, png_bytep);
 
+  #ifndef __clang_analyzer__
   #include "pnglib/pngrtran.c"
   #include "pnglib/pngrutil.c"
   #include "pnglib/pngset.c"
@@ -313,6 +315,7 @@ namespace pnglibNamespace
   #include "pnglib/pngwrite.c"
   #include "pnglib/pngwtran.c"
   #include "pnglib/pngwutil.c"
+  #endif // _clang_analyzer
 
   JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 

@@ -65,7 +65,21 @@ public:
         preferred command-key modifier - so on the Mac it tests for the cmd key, on
         Windows/Linux, it's actually checking for the CTRL key.
     */
-    inline bool isCommandDown() const noexcept          { return testFlags (commandModifier); }
+    inline bool isCommandDown() const noexcept          {
+    #if JUCE_MAC || JUCE_IOS
+        return testFlags (commandModifier);
+    #else
+        return isCtrlDown();
+    #endif
+    }
+
+    //==============================================================================
+    /** Checks whether the 'Windows' / 'Start' / 'Super' or 'Command' key flag is set (Both Left and Right)
+
+        Due to legacy reasons, JUCE mapped 'command' to Ctrl on Windows. While handy,
+        Sometimes you it's need to check this specific key.
+    */
+    inline bool isCommandOrWinKeyDown() const noexcept          { return testFlags (commandModifier); }
 
     /** Checks whether the user is trying to launch a pop-up menu.
 
@@ -135,17 +149,14 @@ public:
         /** Middle mouse button flag. */
         middleButtonModifier                    = 64,
 
-       #if JUCE_MAC || JUCE_IOS
-        /** Command key flag - on windows this is the same as the CTRL key flag. */
+        /** Command / Win / Start / Super key flag.*/
         commandModifier                         = 8,
 
+       #if JUCE_MAC || JUCE_IOS
         /** Popup menu flag - on windows this is the same as rightButtonModifier, on the
             Mac it's the same as (rightButtonModifier | ctrlModifier). */
         popupMenuClickModifier                  = rightButtonModifier | ctrlModifier,
        #else
-        /** Command key flag - on windows this is the same as the CTRL key flag. */
-        commandModifier                         = ctrlModifier,
-
         /** Popup menu flag - on windows this is the same as rightButtonModifier, on the
             Mac it's the same as (rightButtonModifier | ctrlModifier). */
         popupMenuClickModifier                  = rightButtonModifier,
@@ -163,23 +174,23 @@ public:
 
     //==============================================================================
     /** Returns a copy of only the mouse-button flags */
-    ModifierKeys withOnlyMouseButtons() const noexcept                  { return ModifierKeys (flags & allMouseButtonModifiers); }
+    JUCE_NODISCARD ModifierKeys withOnlyMouseButtons() const noexcept                  { return ModifierKeys (flags & allMouseButtonModifiers); }
 
     /** Returns a copy of only the non-mouse flags */
-    ModifierKeys withoutMouseButtons() const noexcept                   { return ModifierKeys (flags & ~allMouseButtonModifiers); }
+    JUCE_NODISCARD ModifierKeys withoutMouseButtons() const noexcept                   { return ModifierKeys (flags & ~allMouseButtonModifiers); }
 
-    bool operator== (const ModifierKeys other) const noexcept           { return flags == other.flags; }
-    bool operator!= (const ModifierKeys other) const noexcept           { return flags != other.flags; }
+    bool operator== (const ModifierKeys other) const noexcept                          { return flags == other.flags; }
+    bool operator!= (const ModifierKeys other) const noexcept                          { return flags != other.flags; }
 
     //==============================================================================
     /** Returns the raw flags for direct testing. */
-    inline int getRawFlags() const noexcept                             { return flags; }
+    inline int getRawFlags() const noexcept                                            { return flags; }
 
-    ModifierKeys withoutFlags (int rawFlagsToClear) const noexcept      { return ModifierKeys (flags & ~rawFlagsToClear); }
-    ModifierKeys withFlags (int rawFlagsToSet) const noexcept           { return ModifierKeys (flags | rawFlagsToSet); }
+    JUCE_NODISCARD ModifierKeys withoutFlags (int rawFlagsToClear) const noexcept      { return ModifierKeys (flags & ~rawFlagsToClear); }
+    JUCE_NODISCARD ModifierKeys withFlags (int rawFlagsToSet) const noexcept           { return ModifierKeys (flags | rawFlagsToSet); }
 
     /** Tests a combination of flags and returns true if any of them are set. */
-    bool testFlags (int flagsToTest) const noexcept                     { return (flags & flagsToTest) != 0; }
+    bool testFlags (int flagsToTest) const noexcept                                    { return (flags & flagsToTest) != 0; }
 
     /** Returns the total number of mouse buttons that are down. */
     int getNumMouseButtonsDown() const noexcept;
@@ -194,7 +205,7 @@ public:
         This method is here for backwards compatibility and there's no need to call it anymore,
         you should use the public currentModifiers member directly.
      */
-    static ModifierKeys getCurrentModifiers() noexcept                  { return currentModifiers; }
+    static ModifierKeys getCurrentModifiers() noexcept                                 { return currentModifiers; }
 
     /** Creates a ModifierKeys object to represent the current state of the
         keyboard and mouse buttons.

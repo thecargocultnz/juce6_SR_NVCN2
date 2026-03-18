@@ -26,8 +26,6 @@
 namespace juce
 {
 
-void setThreadDPIAwarenessForWindow (HWND);
-
 class HWNDComponent::Pimpl  : public ComponentMovementWatcher
 {
 public:
@@ -52,12 +50,12 @@ public:
         {
             auto area = (peer->getAreaCoveredBy (owner).toFloat() * peer->getPlatformScaleFactor()).getSmallestIntegerContainer();
 
-            setThreadDPIAwarenessForWindow (hwnd);
-
             UINT flagsToSend =  SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER;
 
             if (! wasMoved)   flagsToSend |= SWP_NOMOVE;
             if (! wasResized) flagsToSend |= SWP_NOSIZE;
+
+            ScopedThreadDPIAwarenessSetter threadDpiAwarenessSetter { hwnd };
 
             SetWindowPos (hwnd, nullptr, area.getX(), area.getY(), area.getWidth(), area.getHeight(), flagsToSend);
         }
@@ -101,7 +99,7 @@ public:
     {
         if (auto* peer = owner.getPeer())
         {
-            setThreadDPIAwarenessForWindow (hwnd);
+            ScopedThreadDPIAwarenessSetter threadDpiAwarenessSetter { hwnd };
 
             RECT r;
             GetWindowRect (hwnd, &r);
@@ -122,8 +120,10 @@ private:
         {
             auto windowFlags = GetWindowLongPtr (hwnd, -16);
 
-            windowFlags &= ~WS_POPUP;
-            windowFlags |= WS_CHILD;
+            using FlagType = decltype (windowFlags);
+
+            windowFlags &= ~(FlagType) WS_POPUP;
+            windowFlags |= (FlagType) WS_CHILD;
 
             SetWindowLongPtr (hwnd, -16, windowFlags);
             SetParent (hwnd, (HWND) currentPeer->getNativeHandle());
@@ -135,7 +135,7 @@ private:
     void removeFromParent()
     {
         ShowWindow (hwnd, SW_HIDE);
-        SetParent (hwnd, NULL);
+        SetParent (hwnd, nullptr);
     }
 
     Component& owner;

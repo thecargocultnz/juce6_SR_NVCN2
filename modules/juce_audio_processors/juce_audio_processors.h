@@ -35,11 +35,12 @@
 
   ID:                 juce_audio_processors
   vendor:             juce
-  version:            6.0.7
+  version:            6.1.5
   name:               JUCE audio processor classes
   description:        Classes for loading and playing VST, AU, LADSPA, or internally-generated audio processors.
   website:            http://www.juce.com/juce
   license:            GPL/Commercial
+  minimumCppStandard: 14
 
   dependencies:       juce_gui_extra, juce_audio_basics
   OSXFrameworks:      CoreAudio CoreMIDI AudioToolbox
@@ -105,7 +106,7 @@
      Enables the ARA support in the VST3 audio plugin hosting classes.
 
      @see VSTPluginFormat, VST3PluginFormat, AudioPluginFormat, AudioPluginFormatManager, JUCE_PLUGINHOST_VST, JUCE_PLUGINHOST_AU
-    
+
     AudioUnit support coming soon!
  */
 #ifndef JUCE_PLUGINHOST_ARA
@@ -134,9 +135,14 @@
 #endif
 
 //==============================================================================
+#include "utilities/juce_VSTCallbackHandler.h"
+#include "utilities/juce_VST3ClientExtensions.h"
+#include "utilities/juce_ExtensionsVisitor.h"
+#include "processors/juce_AudioProcessorParameter.h"
+#include "processors/juce_HostedAudioProcessorParameter.h"
+#include "processors/juce_AudioProcessorEditorHostContext.h"
 #include "processors/juce_AudioProcessorEditor.h"
 #include "processors/juce_AudioProcessorListener.h"
-#include "processors/juce_AudioProcessorParameter.h"
 #include "processors/juce_AudioProcessorParameterGroup.h"
 #include "processors/juce_AudioProcessor.h"
 #include "processors/juce_PluginDescription.h"
@@ -161,3 +167,4 @@
 #include "utilities/juce_AudioParameterChoice.h"
 #include "utilities/juce_ParameterAttachments.h"
 #include "utilities/juce_AudioProcessorValueTreeState.h"
+#include "utilities/juce_PluginHostType.h"

@@ -287,7 +287,7 @@ static bool isGlobalPathValid (const File& relativeTo, const Identifier& key, co
     {
         fileToCheckFor = "Interfaces/AAX_Exports.cpp";
     }
-    else if (key == Ids::araFolder)
+    else if (key == Ids::araPath)
     {
         fileToCheckFor = "ARA_API/ARAInterface.h";
     }
@@ -388,7 +388,7 @@ static String getFallbackPathForOS (const Identifier& key, DependencyPathOS os)
         else if (os == TargetOS::osx)      return "~/SDKs/AAX";
         else                               return {}; // no AAX on this OS!
     }
-    else if (key == Ids::araFolder)
+    else if (key == Ids::araPath)
     {
         if      (os == TargetOS::windows)  return "C:\\SDKs\\ARA";
         else if (os == TargetOS::osx)      return "~/SDKs/ARA";
@@ -464,10 +464,16 @@ static Identifier identifierForOS (DependencyPathOS os) noexcept
     return {};
 }
 
-ValueWithDefault StoredSettings::getStoredPath (const Identifier& key, DependencyPathOS os)
+ValueTreePropertyWithDefault StoredSettings::getStoredPath (const Identifier& key, DependencyPathOS os)
 {
     auto tree = (os == TargetOS::getThisOS() ? projectDefaults
                                              : fallbackPaths.getOrCreateChildWithName (identifierForOS (os), nullptr));
 
     return { tree, key, nullptr, getFallbackPathForOS (key, os) };
 }
+
+void StoredSettings::addProjectDefaultsListener (ValueTree::Listener& l)     { projectDefaults.addListener (&l); }
+void StoredSettings::removeProjectDefaultsListener (ValueTree::Listener& l)  { projectDefaults.removeListener (&l); }
+
+void StoredSettings::addFallbackPathsListener (ValueTree::Listener& l)       { fallbackPaths.addListener (&l); }
+void StoredSettings::removeFallbackPathsListener (ValueTree::Listener& l)    { fallbackPaths.removeListener (&l); }
