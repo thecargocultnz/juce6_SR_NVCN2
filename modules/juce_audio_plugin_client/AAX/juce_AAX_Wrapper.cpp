@@ -314,9 +314,7 @@ namespace AAXClasses
                 case AAX_eStemFormat_Ambi_1_ACN: return AudioChannelSet::ambisonic (1);
                 case AAX_eStemFormat_Ambi_2_ACN: return AudioChannelSet::ambisonic (2);
                 case AAX_eStemFormat_Ambi_3_ACN: return AudioChannelSet::ambisonic (3);
-                case AAX_eStemFormat_Reserved_1:
-                case AAX_eStemFormat_Reserved_2:
-                case AAX_eStemFormat_Reserved_3:
+                /// TCC: AAX_eStemFormat_Reserved_1/2/3 removed in AAX SDK 2025 - safe to drop, they were dead fallthrough
                 case AAX_eStemFormatNum:
                 case AAX_eStemFormat_Any:
                 case AAX_eStemFormat_INT32_MAX:
@@ -2657,7 +2655,8 @@ namespace AAXClasses
         properties->AddProperty(AAX_eProperty_DisableHandles, true);
 #endif
 #if JucePlugin_EnhancedAudioSuite_DisableAudiosuiteReverse
-        properties->AddProperty(AAX_eProperty_DisableAudiosuiteReverse, true);
+        /// TCC: capitalization changed in AAX SDK 2025 (Audiosuite -> AudioSuite)
+        properties->AddProperty(AAX_eProperty_DisableAudioSuiteReverse, true);
 #endif
 #if JucePlugin_AAXDisableBypass
         properties->AddProperty(AAX_eProperty_CanBypass, false);
